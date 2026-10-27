@@ -5,14 +5,12 @@ import de.robv.android.xposed.XposedBridge
 
 object PremiumPatcher {
 
+    // 填入刚刚扫出来的真类名关键字
     private val CLASS_HINTS = listOf(
-        "ProductState", "SubscriptionState", "UserState", "AccountState", "Premium"
+        "PremiumBadge", "SubscriptionState", "UserState", "ProductState"
     )
     private val BOOL_TRUE = listOf(
         "premium", "paid", "subscribed", "isAdFree", "canSkip"
-    )
-    private val BOOL_FALSE = listOf(
-        "trial", "isAd", "hasAd", "adsEnabled"
     )
     private val STR_HINTS = listOf(
         "productType", "userType", "tier", "product", "plan"
@@ -35,15 +33,13 @@ object PremiumPatcher {
         val targets = c.declaredFields.filter { fl ->
             when {
                 fl.type == Boolean::class.javaPrimitiveType ->
-                    BOOL_TRUE.any { fl.name.contains(it, true) } ||
-                        BOOL_FALSE.any { fl.name.contains(it, true) }
+                    BOOL_TRUE.any { fl.name.contains(it, true) }
                 fl.type == String::class.java ->
                     STR_HINTS.any { fl.name.contains(it, true) }
                 else -> false
             }
         }
         if (targets.isEmpty()) return 0
-
         for (fl in targets) fl.isAccessible = true
 
         XposedBridge.hookAllConstructors(c, object : XC_MethodHook() {
@@ -52,7 +48,7 @@ object PremiumPatcher {
                 for (fl in targets) {
                     runCatching {
                         if (fl.type == Boolean::class.javaPrimitiveType) {
-                            fl.setBoolean(o, BOOL_TRUE.any { fl.name.contains(it, true) })
+                            fl.setBoolean(o, true)
                         } else {
                             fl.set(o, "premium")
                         }
@@ -67,10 +63,9 @@ object PremiumPatcher {
         var n = 0
         for (mt in c.declaredMethods) {
             if (mt.returnType != Boolean::class.javaPrimitiveType) continue
-            val nm = mt.name
-            if (!BOOL_TRUE.any { nm.contains(it, true) }) continue
+            if (!BOOL_TRUE.any { mt.name.contains(it, true) }) continue
             runCatching {
-                XposedBridge.hookAllMethods(c, nm, object : XC_MethodHook() {
+                XposedBridge.hookAllMethods(c, mt.name, object : XC_MethodHook() {
                     override fun beforeHookedMethod(param: MethodHookParam) {
                         param.result = true
                     }
