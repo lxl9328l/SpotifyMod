@@ -2,6 +2,9 @@ package com.bxt.spotifymod
 
 import android.app.Application
 import android.app.Instrumentation
+import android.os.Handler
+import android.os.Looper
+import android.widget.Toast
 import de.robv.android.xposed.IXposedHookLoadPackage
 import de.robv.android.xposed.XC_MethodHook
 import de.robv.android.xposed.XposedBridge
@@ -12,7 +15,11 @@ class HookEntry : IXposedHookLoadPackage {
 
     override fun handleLoadPackage(lpparam: XC_LoadPackage.LoadPackageParam) {
         if (lpparam.packageName != TARGET_PKG) return
-        XposedBridge.log("[SpotifyMod] injected into ${lpparam.processName}")
+        
+        // 弹窗确认模块活着
+        Handler(Looper.getMainLooper()).post {
+            Toast.makeText(lpparam.classLoader.loadClass("android.app.ActivityThread").getMethod("currentApplication").invoke(null) as android.content.Context, "SpotifyMod 已成功注入！", Toast.LENGTH_LONG).show()
+        }
 
         XposedHelpers.findAndHookMethod(
             Instrumentation::class.java,
@@ -22,9 +29,7 @@ class HookEntry : IXposedHookLoadPackage {
                 override fun afterHookedMethod(param: MethodHookParam) {
                     val cl = lpparam.classLoader
                     runCatching { PremiumPatcher.patch(cl) }
-                        .onFailure { XposedBridge.log("[SpotifyMod] premium error: $it") }
                     runCatching { AdPatcher.patch(cl) }
-                        .onFailure { XposedBridge.log("[SpotifyMod] ads error: $it") }
                 }
             }
         )
