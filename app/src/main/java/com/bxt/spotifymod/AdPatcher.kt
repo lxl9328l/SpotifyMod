@@ -15,7 +15,7 @@ object AdPatcher {
     )
     private val CORE_HINTS = listOf("advertisement", "adslot", "adbreak")
 
-    fun patch(cl: ClassLoader) {
+    fun patch(cl: ClassLoader): String {
         val classes = DexScanner.scan(cl) { n ->
             n.startsWith("com.spotify") && (
                 CLASS_HINTS.any { n.contains(it) } ||
@@ -56,6 +56,6 @@ object AdPatcher {
                 }
             }
         }
-        XposedBridge.log("[SpotifyMod] ads: classes=${classes.size} hooks=$h")
+        return "A(类:${classes.size} 挂载:$h)"
     }
 }
