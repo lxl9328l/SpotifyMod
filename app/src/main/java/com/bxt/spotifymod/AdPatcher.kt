@@ -5,50 +5,37 @@ import de.robv.android.xposed.XposedBridge
 
 object AdPatcher {
 
+    // 精准命中播放器的 AdBreak 上下文
     private val CLASS_HINTS = listOf(
-        "Ad", "Ads", "AdSlot", "AdBreak", "AdPlayback",
-        "AdRules", "AdManager", "AdModel", "AdState", "SpotifyAd"
+        "AdBreakContext", "AdsModeModel", "AdQueue", "AdsOverlay"
     )
-    private val BOOL_HINTS = listOf(
-        "shouldShow", "isAd", "hasAd", "adsEnabled",
-        "isAdPlaying", "canShow", "getIsAd", "shouldPlay"
-    )
-    private val CORE_HINTS = listOf("advertisement", "adslot", "adbreak")
 
     fun patch(cl: ClassLoader): String {
         val classes = DexScanner.scan(cl) { n ->
-            n.startsWith("com.spotify") && (
-                CLASS_HINTS.any { n.contains(it) } ||
-                    CORE_HINTS.any { n.lowercase().contains(it) }
-                )
+            n.startsWith("com.spotify") && CLASS_HINTS.any { n.contains(it) }
         }
         var h = 0
         for (c in classes) {
+            // 1. 干掉广告队列、拦截 Context 里的广告间隙
             for (mt in c.declaredMethods) {
                 val nm = mt.name
-                if (BOOL_HINTS.any { nm.equals(it, true) || nm.startsWith(it, true) }) {
+                // 找到返回 List 的广告队列方法，直接返回空
+                if (mt.returnType == List::class.java && (nm.contains("queue", true) || nm.contains("ads", true))) {
                     runCatching {
-                        val ret = mt.returnType
                         XposedBridge.hookAllMethods(c, nm, object : XC_MethodHook() {
                             override fun beforeHookedMethod(param: MethodHookParam) {
-                                if (ret == Boolean::class.javaPrimitiveType) {
-                                    param.result = false
-                                } else if (ret != Void.TYPE) {
-                                    param.result = null
-                                }
+                                param.result = emptyList<Any>()
                             }
                         })
                         h++
                     }
                 }
-            }
-
-            for (mt in c.declaredMethods) {
-                if (mt.returnType == List::class.java && mt.name.contains("ad", true)) {
+                // 找到判断是不是广告的属性
+                if (mt.returnType == Boolean::class.javaPrimitiveType && (nm.contains("isAd", true) || nm.contains("shouldShow", true))) {
                     runCatching {
-                        XposedBridge.hookAllMethods(c, mt.name, object : XC_MethodHook() {
+                        XposedBridge.hookAllMethods(c, nm, object : XC_MethodHook() {
                             override fun beforeHookedMethod(param: MethodHookParam) {
-                                param.result = emptyList<Any>()
+                                param.result = false
                             }
                         })
                         h++
