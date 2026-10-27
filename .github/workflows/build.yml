@@ -9,12 +9,13 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.7'
       - name: Build
-        run: gradle :app:assembleRelease --no-daemon
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          gradle :app:assembleRelease --no-daemon
       - name: Sign
         run: |
           keytool -genkeypair -v -keystore s.jks -alias modkey -keyalg RSA \
