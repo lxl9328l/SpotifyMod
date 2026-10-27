@@ -1,0 +1,32 @@
+name: build
+on: [push, workflow_dispatch]
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.7'
+      - name: Build
+        run: gradle :app:assembleRelease --no-daemon
+      - name: Sign
+        run: |
+          keytool -genkeypair -v -keystore s.jks -alias modkey -keyalg RSA \
+            -keysize 2048 -validity 10000 -storepass 123456 -keypass 123456 \
+            -dname "CN=SpotifyMod"
+          BT=$(ls $ANDROID_HOME/build-tools | sort -V | tail -1)
+          $ANDROID_HOME/build-tools/$BT/zipalign -p -f 4 \
+            app/build/outputs/apk/release/app-release-unsigned.apk aligned.apk
+          $ANDROID_HOME/build-tools/$BT/apksigner sign --ks s.jks \
+            --ks-pass pass:123456 --key-pass pass:123456 \
+            --out SpotifyMod.apk aligned.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SpotifyMod-apk
+          path: SpotifyMod.apk
