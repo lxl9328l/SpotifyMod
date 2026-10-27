@@ -5,24 +5,25 @@ import de.robv.android.xposed.XposedBridge
 
 object AdPatcher {
 
-    // 精准命中播放器的 AdBreak 上下文
-    private val CLASS_HINTS = listOf(
-        "AdBreakContext", "AdsModeModel", "AdQueue", "AdsOverlay"
-    )
-
     fun patch(cl: ClassLoader): String {
-        val classes = DexScanner.scan(cl) { n ->
-            n.startsWith("com.spotify") && CLASS_HINTS.any { n.contains(it) }
-        }
+        // 全量扫描所有 Spotify 类
+        val classes = DexScanner.scan(cl) { n -> n.startsWith("com.spotify") }
         var h = 0
+        
+        // 暴力拦截：只要类名带这些词，全杀
+        val targetKeywords = listOf("Ad", "Ads", "AdBreak", "AdSlot", "AdsMode", "AdQueue")
+        
         for (c in classes) {
-            // 1. 干掉广告队列、拦截 Context 里的广告间隙
+            // 过滤出广告相关的类
+            if (!targetKeywords.any { c.name.contains(it) }) continue
+
             for (mt in c.declaredMethods) {
-                val nm = mt.name
-                // 找到返回 List 的广告队列方法，直接返回空
-                if (mt.returnType == List::class.java && (nm.contains("queue", true) || nm.contains("ads", true))) {
+                val ret = mt.returnType
+                
+                // 1. 只要是返回 List 的广告列表，统统变成空列表
+                if (ret == List::class.java) {
                     runCatching {
-                        XposedBridge.hookAllMethods(c, nm, object : XC_MethodHook() {
+                        XposedBridge.hookAllMethods(c, mt.name, object : XC_MethodHook() {
                             override fun beforeHookedMethod(param: MethodHookParam) {
                                 param.result = emptyList<Any>()
                             }
@@ -30,12 +31,17 @@ object AdPatcher {
                         h++
                     }
                 }
-                // 找到判断是不是广告的属性
-                if (mt.returnType == Boolean::class.javaPrimitiveType && (nm.contains("isAd", true) || nm.contains("shouldShow", true))) {
+                
+                // 2. 只要是返回 boolean 的，如果是获取广告就返回 false
+                if (ret == Boolean::class.javaPrimitiveType) {
                     runCatching {
-                        XposedBridge.hookAllMethods(c, nm, object : XC_MethodHook() {
+                        XposedBridge.hookAllMethods(c, mt.name, object : XC_MethodHook() {
                             override fun beforeHookedMethod(param: MethodHookParam) {
-                                param.result = false
+                                if (mt.name.contains("premium", true) || mt.name.contains("subscribed", true)) {
+                                    param.result = true
+                                } else {
+                                    param.result = false
+                                }
                             }
                         })
                         h++
@@ -43,6 +49,6 @@ object AdPatcher {
                 }
             }
         }
-        return "A(类:${classes.size} 挂载:$h)"
+        return "狂暴拦截 A(挂载:$h)"
     }
 }
