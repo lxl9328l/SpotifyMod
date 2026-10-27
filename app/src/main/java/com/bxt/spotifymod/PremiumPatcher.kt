@@ -18,7 +18,7 @@ object PremiumPatcher {
         "productType", "userType", "tier", "product", "plan"
     )
 
-    fun patch(cl: ClassLoader) {
+    fun patch(cl: ClassLoader): String {
         val classes = DexScanner.scan(cl) { n ->
             n.startsWith("com.spotify") && CLASS_HINTS.any { n.contains(it) }
         }
@@ -28,7 +28,7 @@ object PremiumPatcher {
             f += patchFields(c)
             m += patchMethods(c)
         }
-        XposedBridge.log("[SpotifyMod] premium: classes=${classes.size} fields=$f methods=$m")
+        return "P(类:${classes.size} 字段:$f 方法:$m)"
     }
 
     private fun patchFields(c: Class<*>): Int {
